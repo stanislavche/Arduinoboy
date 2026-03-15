@@ -11,7 +11,7 @@
  *                                                                         *
  ***************************************************************************/
 
-
+#if 0
 void modeLSDJMasterSyncSetup()
 {
   digitalWrite(pinStatusLed,LOW);
@@ -139,3 +139,6 @@ void sendMidiClockSlaveFromLSDJ()
   countGbClockTicks++;              //Increment the bit counter
  if(countGbClockTicks==8) countGbClockTicks=0;
 }
+#endif // S_TN: unused mode
+
+// Mode_LSDJ_MasterSync.ino — not used in S_TN fork

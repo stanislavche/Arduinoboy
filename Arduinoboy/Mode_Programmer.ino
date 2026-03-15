@@ -1,4 +1,6 @@
-// Mode_Programmer.ino — removed in S_TN fork
+// Mode_Programmer.ino — not used in S_TN fork
+#if 0
+void modeProgrammer()
 {
   while(sysexProgrammingConnected || sysexProgrammingMode) {
     checkProgrammerConnected();
@@ -223,3 +225,4 @@ void blinkSelectedLight(int led)
       blinkSwitch[led]=1;
       blinkSwitchTime[led]=0;
 }
+#endif // S_TN: unused mode

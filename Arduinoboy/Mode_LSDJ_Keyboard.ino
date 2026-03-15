@@ -11,6 +11,11 @@
  *                                                                         *
  ***************************************************************************/
 
+/*
+// Mode_LSDJ_Keyboard.ino — not used in S_TN fork
+*/
+
+#if 0
 void modeLSDJKeyboardSetup()
 {
   digitalWrite(pinStatusLed,LOW);
@@ -284,3 +289,4 @@ void modeLSDJKeyboardMidiReceive()
     } while (rx.header != 0);
 #endif
 }
+#endif // S_TN: unused mode

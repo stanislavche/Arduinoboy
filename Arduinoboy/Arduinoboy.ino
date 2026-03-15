@@ -25,24 +25,23 @@
 
 // ── Default settings (written to EEPROM on first boot) ───────────────────
 byte defaultMemoryMap[MEM_MAX] = {
-  0x7F,0x01,0x03,0x7F, // memory init check
-  0x00,                // MEM_FORCE_MODE
-  0x00,                // MEM_MODE  — default: mGB (0)
-  15,                  // MEM_LSDJSLAVE_MIDI_CH  (ch 16, 0-indexed)
-  15,15,1,1,           // unused legacy bytes (master ch, kbd ch, compat)
-  1,                   // unused
-  0,1,2,3,             // midiout note channels (unused)
-  0,1,2,3,             // midiout CC channels (unused)
-  1,1,1,1,             // midiout CC mode (unused)
-  1,1,1,1,             // midiout CC scaling (unused)
-  1,2,3,7,10,11,12,    // pu1 CC numbers (unused)
-  1,2,3,7,10,11,12,    // pu2
-  1,2,3,7,10,11,12,    // wav
-  1,2,3,7,10,11,12,    // noi
-  0,1,2,3,4,           // MEM_MGB_CH: mGB midi channels (ch 1-5, 0-indexed)
-  0,                   // livemap ch (unused)
-  80,1,                // midiout bit delay & multiplier (unused)
-  0,0                  // midiout byte delay & multiplier (unused)
+  0x7F,0x01,0x03,0x7F, // memory init check           indices 0-3
+  0x00,                // MEM_FORCE_MODE               index 4
+  0x00,                // MEM_MODE — default: mGB (0)  index 5
+  15,                  // MEM_LSDJSLAVE_MIDI_CH        index 6
+  15,15,1,1,           // legacy (master ch, kbd ch, compat, ch-to-inst)  7-10
+  0,1,2,3,             // midiout note channels (unused)  11-14
+  0,1,2,3,             // midiout CC channels (unused)    15-18
+  1,1,1,1,             // midiout CC mode (unused)        19-22
+  1,1,1,1,             // midiout CC scaling (unused)     23-26
+  1,2,3,7,10,11,12,    // pu1 CC numbers (unused)         27-33
+  1,2,3,7,10,11,12,    // pu2                             34-40
+  1,2,3,7,10,11,12,    // wav                             41-47
+  1,2,3,7,10,11,12,    // noi                             48-54
+  0,1,2,3,4,           // MEM_MGB_CH: mGB ch 1-5          55-59
+  0,                   // livemap ch (unused)              60
+  80,1,                // midiout bit delay & mult         61-62
+  0,0                  // midiout byte delay & mult        63-64
 };
 byte memory[MEM_MAX];
 

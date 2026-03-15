@@ -11,6 +11,9 @@
  *                                                                         *
  ***************************************************************************/
 
+// Mode_LSDJ_Map.ino — not used in S_TN fork
+
+#if 0
 void modeLSDJMapSetup()
 {
   digitalWrite(pinStatusLed,LOW);
@@ -233,3 +236,4 @@ void modeLSDJMapUsbMidiReceive()
     } while (rx.header != 0);
 #endif
 }
+#endif // S_TN: unused mode

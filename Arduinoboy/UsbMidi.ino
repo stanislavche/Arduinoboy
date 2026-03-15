@@ -19,7 +19,7 @@ void usbHandleProgramChange(byte channel, byte number) {
 }
 
 void usbMidiSendRTMessage(uint8_t b) {
-  usbMIDI.sendRealTime((usbMIDI_::MidiType)b);
+  usbMIDI.sendRealTime(b);
 }
 
 void usbMidiInit() {
@@ -31,12 +31,6 @@ void usbMidiUpdate() {
 }
 
 #endif
-
-
-
-#endif
-
-
 
 
 

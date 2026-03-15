@@ -147,7 +147,6 @@ void modeMidiGbUsbMidiReceive()
     else if (ch == memory[MEM_MGB_CH+4]) { gbCh = 4; send = true; }
     if (!send) continue; // not an mGB channel — skip
 
-    uint8_t s;
     switch (usbMIDI.getType()) {
       case 0x80: // Note Off
         sendByteToGameboy(0x80 + gbCh); delayMicroseconds(GB_MIDI_DELAY);

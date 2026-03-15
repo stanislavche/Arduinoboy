@@ -1,8 +1,4 @@
-/**************************************************************************
- * Name:    Timothy Lamb                                                  *
- * Email:   trash80@gmail.com                                             *
- ***************************************************************************/
-/***************************************************************************
+// Mode_LSDJ_Midiout.ino — removed in S_TN fork
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *

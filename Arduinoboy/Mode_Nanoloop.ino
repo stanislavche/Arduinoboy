@@ -13,57 +13,78 @@
 
 void modeNanoloopSetup()
 {
-  digitalWrite(pinStatusLed,LOW);
-  pinMode(pinGBClock,OUTPUT);
-  digitalWrite(pinGBClock,HIGH);
+  modeChangeRequested = false;
+  midiPcWait          = false;
+  nanoState           = false;
+  nanoSkipSync        = false;
+
+  digitalWrite(pinStatusLed, LOW);
+  pinMode(pinGBClock,    OUTPUT);
+  digitalWrite(pinGBClock, HIGH);
 
 #ifdef USE_TEENSY
   usbMIDI.setHandleRealTimeSystem(usbMidiNanoloopRealtimeMessage);
 #endif
 
-  blinkMaxCount=1000;
+  blinkMaxCount = 1000;
   modeNanoloopSync();
 }
 
 void modeNanoloopSync()
 {
-  while(1){  //Loop forever
-  modeNanoloopUsbMidiReceive();
-  if (serial->available()) {                 //If MIDI Byte Availaibleleleiel
-    incomingMidiByte = serial->read();           //Read it
-    if(!checkForProgrammerSysex(incomingMidiByte) && !usbMode) serial->write(incomingMidiByte);       //Send it back to the Midi out
+  while (1) {
+    // ── USB MIDI: realtime via callback, PC ch16 via usbHandleProgramChange
+    modeNanoloopUsbMidiReceive();
+    if (modeChangeRequested) break;
 
+    // ── Hardware serial MIDI ───────────────────────────────────────────────
+    if (serial->available()) {
+      incomingMidiByte = serial->read();
 
-    if(incomingMidiByte & 0x80) {
-    switch (incomingMidiByte) {
-      case 0xF8:                                 // Clock Message Recieved
-                                                 // Send a clock tick out if the sequencer is running
-        if(sequencerStarted) {
-          nanoSkipSync = !nanoSkipSync;
-          if(countSyncTime) {
-            nanoState = sendTickToNanoloop(nanoState, false);
-          } else {
-            nanoState = sendTickToNanoloop(true, true);
-          }
-          nanoState = sendTickToNanoloop(nanoState, nanoSkipSync);
-          updateVisualSync();
-          break;
+      // Mode switch: PC data byte pending from ch16
+      if (midiPcWait && !(incomingMidiByte & 0x80)) {
+        midiPcWait = false;
+        handleModeChange(incomingMidiByte);
+        if (modeChangeRequested) break;
+        continue;
+      }
+
+      if (incomingMidiByte & 0x80) {
+        // Mode switch: PC status on ch16 (0xCF)
+        if ((incomingMidiByte & 0xF0) == 0xC0 &&
+            (incomingMidiByte & 0x0F) == MODE_SWITCH_CH) {
+          midiPcWait = true;
+          continue;
         }
-        break;
-      case 0xFA:                                 // Transport Start Message
-      case 0xFB:                                 // Transport Continue Message
-        sequencerStart();
-        break;
-      case 0xFC:                                 // Transport Stop Message
-        sequencerStop();
-        break;
-      default:
-        break;
+        midiPcWait = false;
+
+        switch (incomingMidiByte) {
+          case 0xF8: // Clock
+            if (sequencerStarted) {
+              nanoSkipSync = !nanoSkipSync;
+              if (countSyncTime) {
+                nanoState = sendTickToNanoloop(nanoState, false);
+              } else {
+                nanoState = sendTickToNanoloop(true, true);
+              }
+              nanoState = sendTickToNanoloop(nanoState, nanoSkipSync);
+              updateVisualSync();
+            }
+            break;
+          case 0xFA: // Start
+          case 0xFB: // Continue
+            sequencerStart();
+            break;
+          case 0xFC: // Stop
+            sequencerStop();
+            break;
+          default:
+            break;
+        }
       }
     }
-  }
-  setMode();         //Check if the mode button was depressed
-  updateStatusLight();
+    if (modeChangeRequested) break;
+    updateStatusLight();
   }
 }
 
@@ -111,37 +132,16 @@ void usbMidiNanoloopRealtimeMessage(uint8_t message)
 }
 
 
+// USB MIDI receive for Nanoloop mode.
+// Real-time is handled by usbMidiNanoloopRealtimeMessage callback.
+// PC on ch16 is handled by usbHandleProgramChange callback.
 void modeNanoloopUsbMidiReceive()
 {
 #ifdef USE_TEENSY
-    while(usbMIDI.read(memory[MEM_LSDJSLAVE_MIDI_CH]+1)) {
-        switch(usbMIDI.getType()) {
-            case 0x90: // note on
-                getSlaveSyncEffect(usbMIDI.getData1());
-            break;
-            /*
-            case 0: // note on
-            break;
-            case 3: // CC
-            break;
-            case 4: // PG
-            break;
-            case 5: // AT
-            break;
-            case 6: // PB
-            break;
-            */
-        }
-    }
-#endif
-
-#ifdef USE_LEONARDO
-  midiEventPacket_t rx;
-  do
-  {
-    rx = MidiUSB.read();
-    usbMidiNanoloopRealtimeMessage(rx.byte1);
-  } while (rx.header != 0);
+  while (usbMIDI.read()) {
+    if (modeChangeRequested) return;
+    // All meaningful messages handled via callbacks; nothing else needed here.
+  }
 #endif
 
 }

@@ -1,4 +1,4 @@
-void modeProgrammer()
+// Mode_Programmer.ino — removed in S_TN fork
 {
   while(sysexProgrammingConnected || sysexProgrammingMode) {
     checkProgrammerConnected();

@@ -13,84 +13,94 @@
 
 void modeMidiGbSetup()
 {
-  digitalWrite(pinStatusLed,LOW);
-  pinMode(pinGBClock,OUTPUT);
-  digitalWrite(pinGBClock,HIGH);
+  modeChangeRequested = false;
+  midiPcWait          = false;
+  midiValueMode       = false;
+  midiAddressMode     = false;
+
+  digitalWrite(pinStatusLed, LOW);
+  pinMode(pinGBClock,    OUTPUT);
+  digitalWrite(pinGBClock, HIGH);
 
 #ifdef USE_TEENSY
   usbMIDI.setHandleRealTimeSystem(NULL);
 #endif
 
-  blinkMaxCount=1000;
+  blinkMaxCount = 1000;
   modeMidiGb();
 }
 
 void modeMidiGb()
 {
   boolean sendByte = false;
-  while(1){                                //Loop foreverrrr
+  while (1) {
+    // ── USB MIDI (both USB and hardware paths active simultaneously) ──────
     modeMidiGbUsbMidiReceive();
+    if (modeChangeRequested) break;
 
-    if (serial->available()) {          //If MIDI is sending
-      incomingMidiByte = serial->read();    //Get the byte sent from MIDI
+    // ── Hardware serial MIDI ──────────────────────────────────────────────
+    if (serial->available()) {
+      incomingMidiByte = serial->read();
 
-      if(!checkForProgrammerSysex(incomingMidiByte) && !usbMode) serial->write(incomingMidiByte); //Echo the Byte to MIDI Output
+      // ── Mode switch: PC data byte pending from ch16 ───────────────────
+      if (midiPcWait && !(incomingMidiByte & 0x80)) {
+        midiPcWait = false;
+        handleModeChange(incomingMidiByte);
+        if (modeChangeRequested) break;
+        continue;
+      }
 
-      if(incomingMidiByte & 0x80) {
+      if (incomingMidiByte & 0x80) {
+        // ── Mode switch: PC status byte on ch16 (0xCF) ───────────────────
+        if ((incomingMidiByte & 0xF0) == 0xC0 &&
+            (incomingMidiByte & 0x0F) == MODE_SWITCH_CH) {
+          midiPcWait      = true;
+          midiValueMode   = false;
+          midiAddressMode = false;
+          continue;
+        }
+        midiPcWait = false; // any other status byte cancels pending PC wait
+
+        // ── mGB status byte routing ───────────────────────────────────────
         switch (incomingMidiByte & 0xF0) {
           case 0xF0:
             midiValueMode = false;
             break;
           default:
             sendByte = false;
-            midiStatusChannel = incomingMidiByte&0x0F;
-            midiStatusType    = incomingMidiByte&0xF0;
-            if(midiStatusChannel == memory[MEM_MGB_CH]) {
-               midiData[0] = midiStatusType;
-               sendByte = true;
-            } else if (midiStatusChannel == memory[MEM_MGB_CH+1]) {
-               midiData[0] = midiStatusType+1;
-               sendByte = true;
-            } else if (midiStatusChannel == memory[MEM_MGB_CH+2]) {
-               midiData[0] = midiStatusType+2;
-               sendByte = true;
-            } else if (midiStatusChannel == memory[MEM_MGB_CH+3]) {
-               midiData[0] = midiStatusType+3;
-               sendByte = true;
-            } else if (midiStatusChannel == memory[MEM_MGB_CH+4]) {
-               midiData[0] = midiStatusType+4;
-               sendByte = true;
-            } else {
-              midiValueMode  =false;
-              midiAddressMode=false;
-            }
-            if(sendByte) {
+            midiStatusChannel = incomingMidiByte & 0x0F;
+            midiStatusType    = incomingMidiByte & 0xF0;
+            if      (midiStatusChannel == memory[MEM_MGB_CH])   { midiData[0] = midiStatusType;     sendByte = true; }
+            else if (midiStatusChannel == memory[MEM_MGB_CH+1]) { midiData[0] = midiStatusType + 1; sendByte = true; }
+            else if (midiStatusChannel == memory[MEM_MGB_CH+2]) { midiData[0] = midiStatusType + 2; sendByte = true; }
+            else if (midiStatusChannel == memory[MEM_MGB_CH+3]) { midiData[0] = midiStatusType + 3; sendByte = true; }
+            else if (midiStatusChannel == memory[MEM_MGB_CH+4]) { midiData[0] = midiStatusType + 4; sendByte = true; }
+            else { midiValueMode = false; midiAddressMode = false; }
+            if (sendByte) {
               statusLedOn();
               sendByteToGameboy(midiData[0]);
               delayMicroseconds(GB_MIDI_DELAY);
-              midiValueMode  =false;
-              midiAddressMode=true;
+              midiValueMode   = false;
+              midiAddressMode = true;
             }
-           break;
+            break;
         }
-      } else if (midiAddressMode){
+      } else if (midiAddressMode) {
         midiAddressMode = false;
-        midiValueMode = true;
-        midiData[1] = incomingMidiByte;
+        midiValueMode   = true;
+        midiData[1]     = incomingMidiByte;
         sendByteToGameboy(midiData[1]);
         delayMicroseconds(GB_MIDI_DELAY);
       } else if (midiValueMode) {
-        midiData[2] = incomingMidiByte;
+        midiData[2]     = incomingMidiByte;
         midiAddressMode = true;
-        midiValueMode = false;
-
+        midiValueMode   = false;
         sendByteToGameboy(midiData[2]);
         delayMicroseconds(GB_MIDI_DELAY);
         statusLedOn();
-        blinkLight(midiData[0],midiData[2]);
+        blinkLight(midiData[0], midiData[2]);
       }
     } else {
-      setMode();                // Check if mode button was depressed
       updateBlinkLights();
       updateStatusLed();
     }
@@ -122,145 +132,51 @@ void sendByteToGameboy(byte send_byte)
 void modeMidiGbUsbMidiReceive()
 {
 #ifdef USE_TEENSY
+  while (usbMIDI.read()) {
+    // PC on ch16 is handled globally by usbHandleProgramChange() callback.
+    // We still need to check modeChangeRequested and stop processing if set.
+    if (modeChangeRequested) return;
 
-    while(usbMIDI.read()) {
-        uint8_t ch = usbMIDI.getChannel() - 1;
-        boolean send = false;
-        if(ch == memory[MEM_MGB_CH]) {
-            ch = 0;
-            send = true;
-        } else if (ch == memory[MEM_MGB_CH+1]) {
-            ch = 1;
-            send = true;
-        } else if (ch == memory[MEM_MGB_CH+2]) {
-            ch = 2;
-            send = true;
-        } else if (ch == memory[MEM_MGB_CH+3]) {
-            ch = 3;
-            send = true;
-        } else if (ch == memory[MEM_MGB_CH+4]) {
-            ch = 4;
-            send = true;
-        }
-        if(!send) return;
-        uint8_t s;
-        switch(usbMIDI.getType()) {
-            case 0x80: // note off
-            case 0x90: // note on
-                s = 0x90 + ch;
-                if(usbMIDI.getType() == 0x80) {
-                    s = 0x80 + ch;
-                }
-                sendByteToGameboy(s);
-                delayMicroseconds(GB_MIDI_DELAY);
-                sendByteToGameboy(usbMIDI.getData1());
-                delayMicroseconds(GB_MIDI_DELAY);
-                sendByteToGameboy(usbMIDI.getData2());
-                delayMicroseconds(GB_MIDI_DELAY);
-                blinkLight(s, usbMIDI.getData2());
-            break;
-            case 0xB0: // CC
-                sendByteToGameboy(0xB0+ch);
-                delayMicroseconds(GB_MIDI_DELAY);
-                sendByteToGameboy(usbMIDI.getData1());
-                delayMicroseconds(GB_MIDI_DELAY);
-                sendByteToGameboy(usbMIDI.getData2());
-                delayMicroseconds(GB_MIDI_DELAY);
-                blinkLight(0xB0+ch, usbMIDI.getData2());
-            break;
-            case 0xC0: // PG
-                sendByteToGameboy(0xC0+ch);
-                delayMicroseconds(GB_MIDI_DELAY);
-                sendByteToGameboy(usbMIDI.getData1());
-                delayMicroseconds(GB_MIDI_DELAY);
-                blinkLight(0xC0+ch, usbMIDI.getData2());
-            break;
-            case 0xE0: // PB
-                sendByteToGameboy(0xE0+ch);
-                delayMicroseconds(GB_MIDI_DELAY);
-                sendByteToGameboy(usbMIDI.getData1());
-                delayMicroseconds(GB_MIDI_DELAY);
-                sendByteToGameboy(usbMIDI.getData2());
-                delayMicroseconds(GB_MIDI_DELAY);
-            break;
-        }
+    uint8_t ch = usbMIDI.getChannel() - 1; // convert to 0-indexed
+    boolean send = false;
+    uint8_t gbCh = 0;
+    if      (ch == memory[MEM_MGB_CH])   { gbCh = 0; send = true; }
+    else if (ch == memory[MEM_MGB_CH+1]) { gbCh = 1; send = true; }
+    else if (ch == memory[MEM_MGB_CH+2]) { gbCh = 2; send = true; }
+    else if (ch == memory[MEM_MGB_CH+3]) { gbCh = 3; send = true; }
+    else if (ch == memory[MEM_MGB_CH+4]) { gbCh = 4; send = true; }
+    if (!send) continue; // not an mGB channel — skip
 
-        statusLedOn();
+    uint8_t s;
+    switch (usbMIDI.getType()) {
+      case 0x80: // Note Off
+        sendByteToGameboy(0x80 + gbCh); delayMicroseconds(GB_MIDI_DELAY);
+        sendByteToGameboy(usbMIDI.getData1()); delayMicroseconds(GB_MIDI_DELAY);
+        sendByteToGameboy(usbMIDI.getData2()); delayMicroseconds(GB_MIDI_DELAY);
+        break;
+      case 0x90: // Note On
+        sendByteToGameboy(0x90 + gbCh); delayMicroseconds(GB_MIDI_DELAY);
+        sendByteToGameboy(usbMIDI.getData1()); delayMicroseconds(GB_MIDI_DELAY);
+        sendByteToGameboy(usbMIDI.getData2()); delayMicroseconds(GB_MIDI_DELAY);
+        blinkLight(0x90 + gbCh, usbMIDI.getData2());
+        break;
+      case 0xB0: // CC
+        sendByteToGameboy(0xB0 + gbCh); delayMicroseconds(GB_MIDI_DELAY);
+        sendByteToGameboy(usbMIDI.getData1()); delayMicroseconds(GB_MIDI_DELAY);
+        sendByteToGameboy(usbMIDI.getData2()); delayMicroseconds(GB_MIDI_DELAY);
+        blinkLight(0xB0 + gbCh, usbMIDI.getData2());
+        break;
+      case 0xC0: // Program Change (mGB channels only — ch16 handled by callback)
+        sendByteToGameboy(0xC0 + gbCh); delayMicroseconds(GB_MIDI_DELAY);
+        sendByteToGameboy(usbMIDI.getData1()); delayMicroseconds(GB_MIDI_DELAY);
+        break;
+      case 0xE0: // Pitch Bend
+        sendByteToGameboy(0xE0 + gbCh); delayMicroseconds(GB_MIDI_DELAY);
+        sendByteToGameboy(usbMIDI.getData1()); delayMicroseconds(GB_MIDI_DELAY);
+        sendByteToGameboy(usbMIDI.getData2()); delayMicroseconds(GB_MIDI_DELAY);
+        break;
     }
-#endif
-
-#ifdef USE_LEONARDO
-
-    midiEventPacket_t rx;
-      do
-      {
-        rx = MidiUSB.read();
-        uint8_t ch = rx.byte1 & 0x0F;
-        boolean send = false;
-        if(ch == memory[MEM_MGB_CH]) {
-            ch = 0;
-            send = true;
-        } else if (ch == memory[MEM_MGB_CH+1]) {
-            ch = 1;
-            send = true;
-        } else if (ch == memory[MEM_MGB_CH+2]) {
-            ch = 2;
-            send = true;
-        } else if (ch == memory[MEM_MGB_CH+3]) {
-            ch = 3;
-            send = true;
-        } else if (ch == memory[MEM_MGB_CH+4]) {
-            ch = 4;
-            send = true;
-        }
-        if (!send) return;
-        uint8_t s;
-        switch (rx.header)
-        {
-        case 0x08: // note off
-        case 0x09: // note on
-          s = 0x90 + ch;
-          if (rx.header == 0x08)
-          {
-            s = 0x80 + ch;
-          }
-          sendByteToGameboy(s);
-          delayMicroseconds(GB_MIDI_DELAY);
-          sendByteToGameboy(rx.byte2);
-          delayMicroseconds(GB_MIDI_DELAY);
-          sendByteToGameboy(rx.byte3);
-          delayMicroseconds(GB_MIDI_DELAY);
-          blinkLight(s, rx.byte2);
-          break;
-        case 0x0B: // CC
-          sendByteToGameboy(0xB0 + ch);
-          delayMicroseconds(GB_MIDI_DELAY);
-          sendByteToGameboy(rx.byte2);
-          delayMicroseconds(GB_MIDI_DELAY);
-          sendByteToGameboy(rx.byte3);
-          delayMicroseconds(GB_MIDI_DELAY);
-          blinkLight(0xB0 + ch, rx.byte2);
-          break;
-        case 0x0C: // PG
-          sendByteToGameboy(0xC0 + ch);
-          delayMicroseconds(GB_MIDI_DELAY);
-          sendByteToGameboy(rx.byte2);
-          delayMicroseconds(GB_MIDI_DELAY);
-          blinkLight(0xC0 + ch, rx.byte2);
-          break;
-        case 0x0E: // PB
-          sendByteToGameboy(0xE0 + ch);
-          delayMicroseconds(GB_MIDI_DELAY);
-          sendByteToGameboy(rx.byte2);
-          delayMicroseconds(GB_MIDI_DELAY);
-          sendByteToGameboy(rx.byte3);
-          delayMicroseconds(GB_MIDI_DELAY);
-          break;
-        default:
-          return;
-        }
-
-        statusLedOn();
-      } while (rx.header != 0);
+    statusLedOn();
+  }
 #endif
 }

@@ -1,161 +1,212 @@
-# Arduinoboy
-Official ArduinoBoy Repository for serial MIDI communication to the Nintendo Gameboy.
+# Arduinoboy — S_TN Fork
+### Teensy 2.0 inside DMG Game Boy · MIDI via 3.5 mm TRS · USB MIDI
 
-![ScreenShot](http://trash80.net/arduinoboy/aboy1_2_0.jpg)
+> **Fork of** [trash80/Arduinoboy](https://github.com/trash80/Arduinoboy) — stripped down and rebuilt for **Teensy 2.0** installed directly inside a DMG-01 Game Boy.  
+> MIDI input: hardware serial (3.5 mm TRS Type A, M8-compatible) **and** USB MIDI simultaneously.
 
-## About 
-Arduinoboy is software for the [Arduino hardware platform](http://arduino.cc) that allows serial communication (MIDI) to the Nintendo Gameboy for music applications such as [LittleSoundDJ](http://littlesounddj.com), [Nanoloop.](http://www.nanoloop.com/), and [mGB](https://github.com/trash80/mGB)
+---
 
+## What it does
 
-## Current Features
-* Affordable and easily accessible parts for assembly.
-* Accurate MIDI Sync, Start and Stop commands.
-* Push Button selector sets the sync/state modes [(7 modes available)](#modes-details)
-* [mGB](https://github.com/trash80/mGB)
- Mode: Full MIDI in support across all Gameboy Channels, including a unique "poly" mode allows you to play your Game Boy like a synthesizer. 
-* Midi Out Doubles as a Midi Thru
-* "Filtering" data for only sync messages, no dedicated MIDI line required.
-* Can be powered by the Game Boy's gamelink port.
-* USB upgradeable via Arduino.
-* Midi settings configurable using a Mac/PC editor built in Max.
-* Tested and works with DMG (Original), Gameboy Color, and Advance/SP.
+Bridges your MIDI sequencer / [Dirtywave M8](https://dirtywave.com) to the Game Boy's link port — turning a stock DMG into a MIDI sound module or sync target, powered by the Game Boy's own batteries.
 
-## Modes Details
-#### Mode 1 - LSDJ as MIDI Slave Sync
-Slave your Game Boy running [LittleSoundDJ](http://littlesounddj.com) to your midi sequencer or Digital audio workstation.  
+| Mode           | PC # | GB software required                  | What you control              |
+|----------------|------|---------------------------------------|-------------------------------|
+| **mGB**        | 0    | [mGB](https://github.com/trash80/mGB) cartridge | Full MIDI → 5 GB channels |
+| **LSDJ Slave** | 1    | [LSDJ](https://www.littlesounddj.com) (sync: Slave) | Clock, Start/Stop, tempo multiplier |
+| **Nanoloop**   | 2    | [Nanoloop](https://www.nanoloop.com) (sync: Slave) | Clock sync                    |
 
-You can send the arduinoboy midi notes to change sync resolution and start/stop the LSDJ sequencer.  
+---
 
-_LSDJ Slave Mode Midi Note Effects:_
+## Hardware
 
-* 48 - `C-2` Sends a Sequencer Start Command
-* 49 - `C#2` Sends a Sequencer Stop Command
-* 50 - `D-2` Toggles Normal Tempo 
-* 51 - `D#2` Toggles 1/2 Tempo
-* 52 - `E-2` Toggles 1/4 Tempo
-* 53 - `F-2` Toggles 1/8 Tempo
+| Component | Details |
+|-----------|---------|
+| **Teensy 2.0** | ATmega32U4, 5 V, 16 MHz — soldered inside DMG shell |
+| **6N138** | Optocoupler for MIDI IN galvanic isolation |
+| **1N5819** | Schottky diode, reverse polarity protection |
+| **220 Ω** | Current limit resistor (6N138 LED) |
+| **270 Ω** | Pull-up resistor (6N138 output) |
+| **3.5 mm TRS socket** | Stereo jack, MIDI IN TRS Type A (M8 compatible) |
+| **~30 cm wire** | 6 conductors AWG 28–30 for link port |
 
-Higher note values than these map LSDJ song position row offset on a Song Start.
+**Power:** from DMG link port pin 1 (+5 V). No batteries or external PSU needed.  
+**USB:** used for firmware flashing only — disconnect GB batteries when flashing.
 
-In LSDJ the `sync` mode should be set to `Slave`
- 
-#### Mode 2 LSDJ as MIDI Master Sync. 
+📄 Full wiring diagrams, pinouts, and component alternatives:
+- [`Instruction.md`](Instruction.md) — English
+- [`Instruction.ru.md`](Instruction.ru.md) — Русский
 
-Send Midi sync with LSDJ as a midi clock master, LSDJ also sends a Midi Note on message that corresponds to the song row number on play.
+---
 
-In LSDJ the `sync` mode should be set to `Master`
+## DMG Link Port — Quick Reference
 
+```
+  SOLDER SIDE (as seen from inside GB when soldering):
 
-#### Mode 3 LSDJ PC Keyboard mode.
-This mode emulates the [PC Keyboard Mode](http://littlesounddj.wikia.com/wiki/PC_Keyboard_Interface) built into LSDJ, allowing you to control the following aspects of LSDJ: 
+  left edge ──────────────────────── right edge
+  ┌──────────────────────────────────────────┐
+  │  [1 VCC]     [3 SI]     [5 SCK]          │  ← top row
+  │  ─────────────────────────────           │
+  │  [2 SO]      [4 NC]     [6 GND]          │  ← bottom row
+  └───────────────────────── port opening ───┘
 
-Features:
+  Pin 1 VCC  → Teensy VIN          Pin 3 SI  → Teensy Pin 1 (PB1)
+  Pin 2 SO   → Teensy Pin 2 (PB2)  Pin 5 SCK → Teensy Pin 0 (PB0)
+  Pin 6 GND  → Teensy GND          Pin 4 NC  — do not connect
+```
 
-* The first octave controls M-U-T-E, 
-* Cursor control (LSDJ Live mode only), 
-* Table selection
-* Table cue.
+---
 
-_PC Keyboard mode midi note map_
+## How to Use
 
-* 36 - `C-1` Mute Pu1 Off/On
-* 37 - `C#1` Mute Pu2 Off/On
-* 38 - `D-1` Mute Wav Off/On
-* 39 - `D#1` Mute Noi Off/On
-* 40 - `E-1` Livemode Cue Sequence
-* 41 - `F-1` Livemode Cursor Up
-* 42 - `F#1` Livemode Cursor Down
-* 43 - `G-1` Livemode Cursor Left
-* 44 - `G#1` Live mode Cursor Right
-* 45 - `A-1` Table Up
-* 46 - `A#1` Table Down
-* 47 - `B-1` Cue Table
-* 48+ - Notes from this note up will accept midi in from an external keyboard or sequencer and allow you to play the notes`C-2 to C-8`.  
-* Midi Program Change messages will select from instrument table
-* Default Midi channel is 16. You can set this in the top of the main source file in the archive, or via the [Max Pat editor](#max).
+### 1 — Load the right cartridge
+| Mode | Cartridge | LSDJ sync setting |
+|------|-----------|-------------------|
+| mGB | mGB flash cart | — |
+| LSDJ Slave | LSDJ | `SYNC → SLAVE` |
+| Nanoloop | Nanoloop | `sync → slave` |
 
-In LSDJ the `sync` mode should be set to `Keyboard`
+### 2 — Switch modes
+Send a **MIDI Program Change** on **channel 16**:
 
-#### Mode 4 MIDI to Nanoloop sync
-Sync [Nanoloop.](http://www.nanoloop.com/) to external midi clock signals sent to the midi in.
+| PC value | Mode selected | LED blinks at startup |
+|----------|---------------|-----------------------|
+| `0` | mGB | **1 blink** |
+| `1` | LSDJ Slave Sync | **2 blinks** |
+| `2` | Nanoloop Sync | **3 blinks** |
 
-In Nanoloop, the sync mode should be set to `slave`.
+Mode is saved to EEPROM — remembered after power-off.  
+You can send PC from M8, a DAW, or any MIDI controller on ch 16.
 
-#### Mode 5 Full MIDI with mGB
-[mGB](https://github.com/trash80/mGB) is a Gameboy cartridge program (You need a Flash Cart and Transfer hardware) That enables the Gameboy to act as a MIDI supported sound module that allows full control of the Game Boy sound hardware. 
+### 3 — Connect MIDI
+**TRS jack (hardware MIDI):** plug M8 headphone/MIDI output → 3.5 mm TRS socket on GB.  
+**USB MIDI:** connect USB cable to Teensy — appears as a MIDI device on PC/Mac.  
+Both inputs work simultaneously.
 
-It works with the old DMG Gameboy as well as GBC/GBA.
+### 4 — Power on
+Turn on the DMG. The LED blinks to confirm the current mode, then goes into active state.
 
-#### Mode 6 LSDJ MIDIMAP 
-Lsdj will sync to incoming MIDI sync, and incoming MIDI notes are mapped to LSDJ's song row #. The currently selected row's MIDI note is displayed on the top right of the LSDJ screen, and incoming MIDI notes will also display the relative song row number in the same location.
+---
 
-In LSDJ the `sync` mode should be set to `MI.MAP`. 
+## Mode Details
 
-*This requires a special version of LSDJ, which can be found in your account on the [LSDJ website](http://littlesounddj.com/lsd/latest/full_version/).*
+### Mode 0 — mGB
+Full MIDI support across all 5 Game Boy sound channels.
 
-#### Mode 7 LSDJ MIDIOUT
-Each of the 4 gameboy channels send MIDI data on 4 midi channels by the use of effects commands:
+| MIDI Channel | GB Channel |
+|-------------|------------|
+| 1 | Pulse 1 (PU1) |
+| 2 | Pulse 2 (PU2) |
+| 3 | Wave (WAV) |
+| 4 | Noise (NOI) |
+| 5 | Poly (all channels) |
 
-* `Nxx` - Sends a MIDI Note - Absolute to the value placed in the effect. N00 sends note off, `N01`-`N6F` send midi notes 1 to 112.
-* `Qxx` - Sends a [MIDI Note](http://www.electronics.dit.ie/staff/tscarff/Music_technology/midi/midi_note_numbers_for_octaves.htm) relative to the current channel's pitch. The effect value is a offset. so `Q0C` in `PU1` would send a note 1 octave higher than what `PU1` is currently playing. This is useful as a table command to track midi notes as normal notes in the sequencer.
-* `Xxx` - Sends a MIDI CC - By default in Arduinoboy the high nibble selects a CC#, and the low nibble sends a value `0-F` to `0-127`. This can be changed to allow just 1 midi CC with a range of `00`-`6F`, or 7 CCs with scaled or unscaled values.
-* `Yxx` - Sends a program/patch/preset change.
+- Note On/Off, pitch, velocity → GB sound hardware
+- Channel mapping can be reconfigured via EEPROM (Max editor)
 
-By default each channel of LSDJ is mapped to midi channels 1-4. For example note commands from PU1 will be sent to midi channel 1. 
+### Mode 1 — LSDJ Slave Sync
+Arduinoboy acts as clock master for LSDJ running in Slave mode.
 
-In LSDJ the `sync` mode should be set to `Midiout`. 
+| MIDI Note | Action |
+|-----------|--------|
+| C-2 (48) | Sequencer Start |
+| C#2 (49) | Sequencer Stop |
+| D-2 (50) | Normal tempo |
+| D#2 (51) | ½ tempo |
+| E-2 (52) | ¼ tempo |
+| F-2 (53) | ⅛ tempo |
+| Notes > 53 | Set LSDJ song row offset on Start |
 
-*This requires a special version of LSDJ, which can be found in your account on the [LSDJ website](http://littlesounddj.com/lsd/latest/full_version/).*
+MIDI clock (24 ppqn) drives LSDJ. Start/Stop/Continue supported.
 
+### Mode 2 — Nanoloop Sync
+MIDI clock (24 ppqn) is converted to Nanoloop sync pulses.  
+Set Nanoloop to `sync: slave` before use.
 
-## Max Editor
-![Editor gui](Editor/editor.png)
-[The Arduinoboy Editor for Max](https://github.com/trash80/Arduinoboy/tree/master/Editor) for PC/OSX machines is a gui editor that allows you to edit the various global midi settings of your arduinoboy without editing or flashing code, over midi. It used to required the now deprecated Max Runtime, but you can also run it using a demo of [Cycling '74's Max application](https://cycling74.com/downloads/)
+---
 
-### Maxpat Settings
-* `Midi In/Out`
-Connect your arduinoboy to these ports on your system. Once it has connected, all the lights on your arduinoboy should flash in order, and the editor will show a green `Connected`.
-* `Mode` 
-Setting this will tell your arduinoboy what mode to boot into automatically. This is handy if you built your own arduinoboy and decided you wanted to skimp out on LEDs and a button.
-* `LSDJ Slave Mode settings` - The midi channel LSDJ slave mode will receive its commands on.
-* `LSDJ Master Mode settings` - The midi channel LSDJ Master mode will send its midi notes mapped to row number on.
-* `Keyboard Mode settings` - What channel LSDJ will look for its keyboard mode midi commands. No idea what compatibility mode does.
-* `mGB midi settings` - Map each incoming midi channel to a specific Gameboy channel in mGB.
-* `LSDJ Livesync/Livemap settings` - The midi channel Livesync/Livemap will listen to incoming midi commands from.
-* `LSDJ Midiout settings` - Here you can set the following:
-	* `Note midi channel` -  The channel each LSDJ channel will send it's midi note commands on.
-	* `CC midi channel` -  The channel each LSDJ channel will send it's Continuous Controller commands on.
-	* `CC 0` - The initial CC each channel will send. The type of data it will send is based on the next setting.
-	* `CC Mode` - Game Boys have limitations! You can either have arduinoboy send one CC with many values, or 7 with limited 8bit values. By default in Arduinoboy the high nibble selects a CC#, and the low nibble sends a value [0-F] to [0-127]. This can be changed to allow just 1 midi CC with a range of 00-6F, or 7 CCs with scaled or unscaled values.
-	* `CC Scaling ` - Set wether the 7 CCs are scaled or unscaled.
+## LED Signals
 
+| LED behaviour | Meaning |
+|---------------|---------|
+| 1 blink at power-on | Mode: **mGB** |
+| 2 blinks at power-on | Mode: **LSDJ Slave** |
+| 3 blinks at power-on | Mode: **Nanoloop** |
+| Blinks during use | MIDI clock/data activity |
 
-## Future Features & wishlist
-  * Build instructions, and a Arduino Shield
+---
 
-## How To build an Arduinoboy
-![ScreenShot](http://farm3.static.flickr.com/2229/2316803721_c22f9c2387.jpg)
-![ScreenShot](http://trash80.net/arduinoboy/arduinoboy_schematic_1_1_0.png)
+## Flashing Firmware
 
-* [Build Photos](http://flickr.com/photos/trash80/2316803175/in/set-72157604068871573/)
-* [Old version (Pre 1.1.0)](http://trash80.net/junkfood/arduinoboy/arduinoboy-schem-v.0.9.8-r1.png)
+**Requirements:** [PlatformIO](https://platformio.org) (recommended) or Arduino IDE + [Teensyduino](https://www.pjrc.com/teensy/teensyduino.html).
 
-### Video Demos
+**⚠️ Remove GB batteries (or disconnect link port VIN wire) before connecting USB.**
 
-  * [Keyboard Mode Test](http://youtube.com/watch?v=TnLUuvc78XY)
-  * [Sync Demos](http://youtube.com/watch?v=iVmhy-Lo7BI)
-  * [Arduino inside of Gameboy DMG](http://youtube.com/watch?v=VwrMuOA0VnY)
-  * [mGB Example & Arduinoboy build into a DMG](http://vimeo.com/1853931)
-  * [PDF explores mGB with a MIDI guitar](http://www.youtube.com/watch?v=HAU9MzZ2qeE)
+### PlatformIO
+```sh
+# From project root:
+pio run --target upload
+```
 
-## Thanks To
-  * [Arduino](http://arduino.cc)
-  * [Nitro2k01](http://blog.gg8.se/wordpress/) for ASM help with mGB 
-  * [GWEM](http://www.preromanbritain.com/gwem/lsdj_midi/g33k.html) g33k page
-  * [Midines](http://wayfar.net) Thanks for the help x|k!
-  * [firestARTer](http://www.firestarter-music.de) help with keyboard & Midi handling information. 
-  * [Gijs Gieskes](http://gieskes.nl) Found source code that gave insight into Nanoloop sync
-  * [Little Sound DJ](http://littlesounddj.com)
-  * [http://devrs.com/gb](http://devrs.com/gb) Madcatz PC link port for gb serial specs
-  * [http://chipmusic.org](http://chipmusic.org) For all things Chipmusic.
-  
+### Arduino IDE
+1. Install Teensyduino addon
+2. Board: `Teensy 2.0`
+3. USB Type: `Serial + MIDI`
+4. Open `Arduinoboy/Arduinoboy.ino` → Upload
+
+### platformio.ini (already configured)
+```ini
+[env:teensy20]
+platform  = teensy
+board     = teensy20
+framework = arduino
+lib_deps  = MIDI Library
+```
+
+---
+
+## File Structure
+
+```
+Arduinoboy/
+├── Arduinoboy.ino          — main setup/loop, EEPROM, platform defines
+├── Mode.ino                — mode dispatcher
+├── Mode_MidiGb.ino         — mGB implementation
+├── Mode_LSDJ_SlaveSync.ino — LSDJ Slave sync
+├── Mode_Nanoloop.ino       — Nanoloop sync
+├── Led_Functions.ino       — LED blink helpers
+├── Memory_Functions.ino    — EEPROM read/write
+└── UsbMidi.ino             — USB MIDI (Teensyduino)
+
+Instruction.md              — full wiring, pinouts, components (EN)
+Instruction.ru.md           — то же на русском
+Editor/
+└── ArduinoBoyEditor-Midi.maxpat  — Max patch for EEPROM settings
+```
+
+---
+
+## Differences from Original Arduinoboy
+
+| Feature | Original | S_TN fork |
+|---------|----------|-----------|
+| Target MCU | Arduino Uno/Nano | **Teensy 2.0** |
+| MIDI IN | DIN-5 via 6N138 | **3.5 mm TRS Type A** (M8 compatible) |
+| USB MIDI | No | **Yes** (Teensyduino) |
+| Active modes | 7 | **3** (mGB, LSDJ Slave, Nanoloop) |
+| Mode switching | Physical button | **MIDI PC ch 16** |
+| LEDs | 6 (one per mode) | **1** (onboard Teensy LED) |
+| Build target | External module | **Inside DMG shell** |
+| Power | USB or external | **GB link port pin 1** |
+| Build system | Arduino IDE only | **PlatformIO + Arduino IDE** |
+
+---
+
+## Credits
+
+- [trash80](https://github.com/trash80) — original Arduinoboy & mGB
+- [PJRC](https://www.pjrc.com/teensy/) — Teensy 2.0 hardware & Teensyduino
+- [GWEM](http://www.preromanbritain.com/gwem/lsdj_midi/g33k.html) — LSDJ MIDI research
+- [devrs.com/gb](http://devrs.com/gb) — DMG link port serial specs
+- [chipmusic.org](http://chipmusic.org)
